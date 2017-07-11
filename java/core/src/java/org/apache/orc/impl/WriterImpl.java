@@ -281,6 +281,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         case PRESENT:
         case ROW_INDEX:
         case SECONDARY:
+        case SPATIAL_QUADTREE:
           // easily compressed using the fastest modes
           result = result.modify(EnumSet.of(CompressionCodec.Modifier.FASTEST,
               CompressionCodec.Modifier.BINARY));

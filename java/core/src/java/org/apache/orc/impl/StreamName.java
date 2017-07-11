@@ -79,6 +79,7 @@ public class StreamName implements Comparable<StreamName> {
       case DICTIONARY_COUNT:
       case BLOOM_FILTER:
       case BLOOM_FILTER_UTF8:
+      case SPATIAL_QUADTREE:
         return Area.INDEX;
       default:
         return Area.DATA;
