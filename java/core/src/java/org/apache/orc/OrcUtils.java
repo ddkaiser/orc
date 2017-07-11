@@ -161,6 +161,18 @@ public class OrcUtils {
         type.addSubtypes(t.getId());
       }
       break;
+    case POINT:
+        type.setKind(OrcProto.Type.Kind.POINT);
+        type.setCrs(typeDescr.getCrs());
+        break;
+    case POLYLINE:
+        type.setKind(OrcProto.Type.Kind.POLYLINE);
+        type.setCrs(typeDescr.getCrs());
+        break;
+    case POLYGON:
+        type.setKind(OrcProto.Type.Kind.POLYGON);
+        type.setCrs(typeDescr.getCrs());
+        break;
     default:
       throw new IllegalArgumentException("Unknown category: " +
           typeDescr.getCategory());
@@ -233,6 +245,18 @@ public class OrcUtils {
       type.setKind(OrcProto.Type.Kind.DECIMAL);
       type.setPrecision(typeDescr.getPrecision());
       type.setScale(typeDescr.getScale());
+      break;
+    case POINT:
+      type.setKind(OrcProto.Type.Kind.POINT);
+      type.setCrs(typeDescr.getCrs());
+      break;
+    case POLYLINE:
+      type.setKind(OrcProto.Type.Kind.POLYLINE);
+      type.setCrs(typeDescr.getCrs());
+      break;
+    case POLYGON:
+      type.setKind(OrcProto.Type.Kind.POLYGON);
+      type.setCrs(typeDescr.getCrs());
       break;
     case LIST:
       type.setKind(OrcProto.Type.Kind.LIST);
@@ -361,6 +385,18 @@ public class OrcUtils {
     case BINARY:
       builder.setKind(OrcProto.Type.Kind.BINARY);
       break;
+    case POINT:
+      builder.setKind(OrcProto.Type.Kind.POINT);
+      builder.setCrs(oldType.getCrs());
+      break;
+    case POLYLINE:
+      builder.setKind(OrcProto.Type.Kind.POLYLINE);
+      builder.setCrs(oldType.getCrs());
+      break;
+    case POLYGON:
+      builder.setKind(OrcProto.Type.Kind.POLYGON);
+      builder.setCrs(oldType.getCrs());
+      break;
     case TIMESTAMP:
       builder.setKind(OrcProto.Type.Kind.TIMESTAMP);
       break;
@@ -488,6 +524,27 @@ public class OrcUtils {
       }
       case BINARY:
         return TypeDescription.createBinary();
+      case POINT: {
+        TypeDescription result = TypeDescription.createPoint();
+        if (type.hasCrs()) {
+          result.withCRS(type.getCrs());
+        }
+        return result;
+      }
+      case POLYLINE: {
+        TypeDescription result = TypeDescription.createPolyline();
+        if (type.hasCrs()) {
+          result.withCRS(type.getCrs());
+        }
+        return result;
+      }
+      case POLYGON: {
+        TypeDescription result = TypeDescription.createPolygon();
+        if (type.hasCrs()) {
+          result.withCRS(type.getCrs());
+        }
+        return result;
+      }
       case TIMESTAMP:
         return TypeDescription.createTimestamp();
       case DATE:

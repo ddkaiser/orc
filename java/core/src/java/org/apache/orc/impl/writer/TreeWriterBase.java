@@ -59,6 +59,7 @@ public abstract class TreeWriterBase implements TreeWriter {
   protected final BloomFilter bloomFilter;
   protected final BloomFilterUtf8 bloomFilterUtf8;
   protected final boolean createBloomFilter;
+  protected final boolean createSpatialIndex;
   private final OrcProto.BloomFilterIndex.Builder bloomFilterIndex;
   private final OrcProto.BloomFilterIndex.Builder bloomFilterIndexUtf8;
   protected final OrcProto.BloomFilter.Builder bloomFilterEntry;
@@ -89,6 +90,7 @@ public abstract class TreeWriterBase implements TreeWriter {
     }
     this.foundNulls = false;
     createBloomFilter = streamFactory.getBloomFilterColumns()[columnId];
+    createSpatialIndex = true;
     indexStatistics = ColumnStatisticsImpl.create(schema);
     stripeColStatistics = ColumnStatisticsImpl.create(schema);
     fileStatistics = ColumnStatisticsImpl.create(schema);

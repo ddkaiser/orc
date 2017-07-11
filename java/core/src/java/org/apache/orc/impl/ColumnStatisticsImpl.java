@@ -35,6 +35,9 @@ import org.apache.orc.DecimalColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
 import org.apache.orc.OrcProto;
+import org.apache.orc.OrcProto.SpatialMBR;
+import org.apache.orc.OrcProto.SpatialPoint;
+import org.apache.orc.SpatialColumnStatistics;
 import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.TypeDescription;
@@ -1255,6 +1258,131 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
   }
 
+    protected static final class SpatialStatisticsImpl extends ColumnStatisticsImpl implements SpatialColumnStatistics {
+      private long minimum = Long.MAX_VALUE;
+      private long maximum = Long.MIN_VALUE;
+      private boolean hasMinimum = false;
+
+      SpatialStatisticsImpl() {
+      }
+
+      SpatialStatisticsImpl(OrcProto.ColumnStatistics stats) {
+	    super(stats);
+      OrcProto.SpatialStatistics sstat = stats.getSpatialStatistics();
+      if (sstat.hasMinimum()) {
+        hasMinimum = true;
+        minimum = sstat.getMinimum();
+      }
+      if (sstat.hasMaximum()) {
+        maximum = sstat.getMaximum();
+      }
+    }
+
+    @Override
+    public void merge(ColumnStatisticsImpl other) {
+      if (other instanceof SpatialStatisticsImpl) {
+        SpatialStatisticsImpl sstat = (SpatialStatisticsImpl) other;
+        if (!hasMinimum) {
+          hasMinimum = sstat.hasMinimum;
+          minimum = sstat.minimum;
+          maximum = sstat.maximum;
+        } else if (sstat.hasMinimum) {
+          if (sstat.minimum < minimum) {
+            minimum = sstat.minimum;
+          }
+          if (sstat.maximum > maximum) {
+            maximum = sstat.maximum;
+          }
+        }
+      } else {
+        if (isStatsExists() && hasMinimum) {
+          throw new IllegalArgumentException("Incompatible merging of spatial column statistics");
+        }
+      }
+      super.merge(other);
+    }
+
+    @Override
+    public OrcProto.ColumnStatistics.Builder serialize() {
+      OrcProto.ColumnStatistics.Builder builder = super.serialize();
+      OrcProto.SpatialStatistics.Builder ints =
+        OrcProto.SpatialStatistics.newBuilder();
+      if (hasMinimum) {
+        ints.setMinimum(minimum);
+        ints.setMaximum(maximum);
+      }
+      builder.setSpatialStatistics(ints);
+      return builder;
+    }
+
+    @Override
+    public long getMinimum() {
+      return minimum;
+    }
+
+    @Override
+    public long getMaximum() {
+      return maximum;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder buf = new StringBuilder(super.toString());
+      if (getNumberOfValues() != 0) {
+        buf.append(" min: ");
+        buf.append(getMinimum());
+        buf.append(" max: ");
+        buf.append(getMaximum());
+
+//	buf.append(" minX: ");
+//	buf.append(getMinimum().getX());
+//	buf.append(" minY: ");
+//	buf.append(getMinimum().getY());
+//	buf.append(" maxX: ");
+//	buf.append(getMaximum().getX());
+//	buf.append(" maxY: ");
+//	buf.append(getMaximum().getY());
+      }
+      return buf.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof SpatialStatisticsImpl)) {
+        return false;
+      }
+      if (!super.equals(o)) {
+        return false;
+      }
+
+      SpatialStatisticsImpl that = (SpatialStatisticsImpl) o;
+
+      if (minimum != that.minimum) {
+        return false;
+      }
+      if (maximum != that.maximum) {
+        return false;
+      }
+      if (hasMinimum != that.hasMinimum) {
+        return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      int result = super.hashCode();
+      result = 31 * result + (int) (minimum ^ (minimum >>> 32));
+      result = 31 * result + (int) (maximum ^ (maximum >>> 32));
+      result = 31 * result + (hasMinimum ? 1 : 0);
+      return result;
+    }
+  }
+
   private long count = 0;
   private boolean hasNull = false;
 
@@ -1317,6 +1445,14 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
 
   public void updateDecimal(HiveDecimalWritable value) {
     throw new UnsupportedOperationException("Can't update decimal");
+  }
+
+  public void updateSpatial1D(long value) {
+    throw new UnsupportedOperationException("Can't update spatial");
+  }
+
+  public void updateSpatial2D(long minValue, long maxValue) {
+    throw new UnsupportedOperationException("Can't update spatial");
   }
 
   public void updateDate(DateWritable value) {

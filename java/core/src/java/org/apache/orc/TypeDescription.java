@@ -46,6 +46,7 @@ public class TypeDescription
   private static final int DEFAULT_PRECISION = 38;
   private static final int DEFAULT_SCALE = 10;
   private static final int DEFAULT_LENGTH = 256;
+  private static final String DEFAULT_CRS = "epsg:4326";
   private static final Pattern UNQUOTED_NAMES = Pattern.compile("^\\w+$");
 
   @Override
@@ -113,7 +114,10 @@ public class TypeDescription
     LIST("array", false),
     MAP("map", false),
     STRUCT("struct", false),
-    UNION("uniontype", false);
+    UNION("uniontype", false),
+    POINT("point", false),
+    POLYLINE("polyline", false),
+    POLYGON("polygon", false);
 
     Category(String name, boolean isPrimitive) {
       this.name = name;
@@ -178,6 +182,18 @@ public class TypeDescription
 
   public static TypeDescription createDecimal() {
     return new TypeDescription(Category.DECIMAL);
+  }
+
+  public static TypeDescription createPoint() {
+    return new TypeDescription(Category.POINT);
+  }
+
+  public static TypeDescription createPolyline() {
+    return new TypeDescription(Category.POLYLINE);
+  }
+
+  public static TypeDescription createPolygon() {
+    return new TypeDescription(Category.POLYGON);
   }
 
   static class StringPosition {
@@ -275,7 +291,7 @@ public class TypeDescription
     } else {
       while (source.position < source.length) {
         char ch = source.value.charAt(source.position);
-        if (!Character.isLetterOrDigit(ch) && ch != '.' && ch != '_') {
+        if (!Character.isLetterOrDigit(ch) && ch != '.' && ch != '_' && ch != ':') {
           break;
         }
         source.position += 1;
@@ -337,6 +353,13 @@ public class TypeDescription
       case SHORT:
       case STRING:
       case TIMESTAMP:
+        break;
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
+        requireChar(source, '(');
+        result.withCRS(parseName(source)); // using parseName to parse CRS actually
+        requireChar(source, ')');
         break;
       case CHAR:
       case VARCHAR:
@@ -438,6 +461,22 @@ public class TypeDescription
     return this;
   }
 
+  /**
+   * For geometry types, set the CRS.
+   * @param crs the new CRS
+   * @return this
+   */
+  public TypeDescription withCRS(String crs) {
+    if ( (category != Category.POINT)
+      || (category != Category.POLYLINE)
+      || (category != Category.POLYGON) ) {
+      throw new IllegalArgumentException("CRS is only allowed on geometry types"+
+          " and not " + category.name);
+    }
+    this.crs = crs;
+    return this;
+  }
+
   public static TypeDescription createVarchar() {
     return new TypeDescription(Category.VARCHAR);
   }
@@ -454,7 +493,7 @@ public class TypeDescription
   public TypeDescription withMaxLength(int maxLength) {
     if (category != Category.VARCHAR && category != Category.CHAR) {
       throw new IllegalArgumentException("maxLength is only allowed on char" +
-                   " and varchar and not " + category.name);
+          " and varchar and not " + category.name);
     }
     this.maxLength = maxLength;
     return this;
@@ -637,6 +676,9 @@ public class TypeDescription
       case BINARY:
       case CHAR:
       case VARCHAR:
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
         return new BytesColumnVector(maxSize);
       case STRUCT: {
         ColumnVector[] fieldVector = new ColumnVector[children.size()];
@@ -718,6 +760,14 @@ public class TypeDescription
   }
 
   /**
+   * Get the CRS of the geometry type.
+   * @return the CRS for geometry columns
+   */
+  public String getCrs() {
+    return crs;
+  }
+
+  /**
    * For struct types, get the list of field names.
    * @return the list of field names.
    */
@@ -772,6 +822,7 @@ public class TypeDescription
   private int maxLength = DEFAULT_LENGTH;
   private int precision = DEFAULT_PRECISION;
   private int scale = DEFAULT_SCALE;
+  private String crs = DEFAULT_CRS;
 
   static void printFieldName(StringBuilder buffer, String name) {
     if (UNQUOTED_NAMES.matcher(name).matches()) {
@@ -822,6 +873,13 @@ public class TypeDescription
           children.get(i).printToBuffer(buffer);
         }
         buffer.append('>');
+        break;
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
+        buffer.append('(');
+        buffer.append(crs);
+        buffer.append(')');
         break;
       default:
         break;
@@ -882,6 +940,13 @@ public class TypeDescription
           }
         }
         buffer.append(']');
+        break;
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
+        buffer.append(", \"CRS\": ");
+        //TODO: store/retrieve CRS from column metadata (or table metadata of all columns)
+        buffer.append("\"" + crs + "\""); // stub/placeholder
         break;
       default:
         break;
