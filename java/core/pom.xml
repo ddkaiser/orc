@@ -67,7 +67,11 @@
       <artifactId>lucene-spatial</artifactId>
       <version>6.6.0</version>
     </dependency>
-
+    <dependency>
+      <groupId>org.osgeo</groupId>
+      <artifactId>proj4j</artifactId>
+      <version>0.1.0</version>
+    </dependency>
     <!-- test inter-project -->
     <dependency>
       <groupId>com.google.guava</groupId>
