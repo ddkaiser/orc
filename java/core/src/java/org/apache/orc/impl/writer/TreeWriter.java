@@ -150,6 +150,15 @@ public interface TreeWriter {
         case UNION:
           return new UnionTreeWriter(schema.getId(),
               schema, streamFactory, nullable);
+        case POINT:
+        	return new GeometryTreeWriter(schema.getId(),
+        			schema, streamFactory, nullable);
+        case POLYLINE:
+        	return new GeometryTreeWriter(schema.getId(),
+        			schema, streamFactory, nullable);
+        case POLYGON:
+        	return new GeometryTreeWriter(schema.getId(),
+        			schema, streamFactory, nullable);
         default:
           throw new IllegalArgumentException("Bad category: " +
               schema.getCategory());

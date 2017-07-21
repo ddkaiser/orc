@@ -111,6 +111,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private final boolean[] bloomFilterColumns;
   private final double bloomFilterFpp;
   private final OrcFile.BloomFilterVersion bloomFilterVersion;
+  private final boolean[] spatialFilterColumns;
   private final boolean writeTimeZone;
 
   public WriterImpl(FileSystem fs,
@@ -157,6 +158,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           OrcUtils.includeColumns(opts.getBloomFilterColumns(), schema);
     }
     this.bloomFilterFpp = opts.getBloomFilterFpp();
+    this.spatialFilterColumns = OrcUtils.includeColumns(opts.getSpatialFilterColumns(), schema);
     this.physicalWriter = opts.getPhysicalWriter() == null ?
         new PhysicalFsWriter(fs, path, opts) : opts.getPhysicalWriter();
     physicalWriter.writeHeader();
@@ -360,6 +362,14 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
      */
     public double getBloomFilterFPP() {
       return bloomFilterFpp;
+    }
+
+    /**
+     * Get the spatial filter columns
+     * @return spatial filter columns
+     */
+    public boolean[] getSpatialFilterColumns() {
+    	return spatialFilterColumns;
     }
 
     /**

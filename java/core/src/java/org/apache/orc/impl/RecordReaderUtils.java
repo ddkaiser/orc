@@ -423,6 +423,9 @@ public class RecordReaderUtils {
       case LIST:
       case UNION:
         return base;
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
       case CHAR:
       case VARCHAR:
       case STRING:

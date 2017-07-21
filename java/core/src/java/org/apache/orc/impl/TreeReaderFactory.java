@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.ql.exec.vector.expressions.StringExpr;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.OrcProto;
+import org.apache.orc.OrcProto.GeometryValueEncodingKind;
 import org.apache.orc.impl.writer.TimestampTreeWriter;
 
 /**
@@ -2138,6 +2139,270 @@ public class TreeReaderFactory {
     }
   }
 
+  /**
+   * A reader for string columns that are direct encoded in the current
+   * stripe.
+   */
+  public static class GeometryStringDirectTreeReader extends TreeReader {
+    private static final HadoopShims SHIMS = HadoopShims.Factory.get();
+    protected InStream stream;
+    protected IntegerReader lengths;
+    private final LongColumnVector scratchlcv;
+
+    GeometryStringDirectTreeReader(int columnId) throws IOException {
+      this(columnId, null, null, null, null);
+    }
+
+    protected GeometryStringDirectTreeReader(int columnId, InStream present, InStream data,
+        InStream length, OrcProto.ColumnEncoding.Kind encoding) throws IOException {
+      super(columnId, present, null);
+      this.scratchlcv = new LongColumnVector();
+      this.stream = data;
+      if (length != null && encoding != null) {
+        this.lengths = createIntegerReader(encoding, length, false, context);
+      }
+    }
+
+    @Override
+    void checkEncoding(OrcProto.ColumnEncoding encoding) throws IOException {
+      if (encoding.getKind() != OrcProto.ColumnEncoding.Kind.DIRECT &&
+          encoding.getKind() != OrcProto.ColumnEncoding.Kind.DIRECT_V2) {
+        throw new IOException("Unknown encoding " + encoding + " in column " +
+            columnId);
+      }
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+        OrcProto.StripeFooter stripeFooter
+    ) throws IOException {
+      super.startStripe(streams, stripeFooter);
+      StreamName name = new StreamName(columnId,
+          OrcProto.Stream.Kind.DATA);
+      stream = streams.get(name);
+      lengths = createIntegerReader(stripeFooter.getColumnsList().get(columnId).getKind(),
+          streams.get(new StreamName(columnId, OrcProto.Stream.Kind.LENGTH)),
+          false, context);
+    }
+
+    @Override
+    public void seek(PositionProvider[] index) throws IOException {
+      seek(index[columnId]);
+    }
+
+    @Override
+    public void seek(PositionProvider index) throws IOException {
+      super.seek(index);
+      stream.seek(index);
+      // don't seek data stream
+      lengths.seek(index);
+    }
+
+    @Override
+    public void nextVector(ColumnVector previousVector,
+                           boolean[] isNull,
+                           final int batchSize) throws IOException {
+      final BytesColumnVector result = (BytesColumnVector) previousVector;
+
+      // Read present/isNull stream
+      super.nextVector(result, isNull, batchSize);
+
+      scratchlcv.ensureSize(batchSize, false);
+      BytesColumnVectorUtil.readOrcByteArrays(stream, lengths, scratchlcv,
+          result, batchSize);
+    }
+
+    @Override
+    void skipRows(long items) throws IOException {
+      items = countNonNulls(items);
+      long lengthToSkip = 0;
+      for (int i = 0; i < items; ++i) {
+        lengthToSkip += lengths.next();
+      }
+
+      while (lengthToSkip > 0) {
+        lengthToSkip -= stream.skip(lengthToSkip);
+      }
+    }
+
+    public IntegerReader getLengths() {
+      return lengths;
+    }
+
+    public InStream getStream() {
+      return stream;
+    }
+  }
+
+  public static class GeometryBinaryTreeReader extends TreeReader {
+    protected InStream stream;
+    protected IntegerReader lengths = null;
+    protected final LongColumnVector scratchlcv;
+
+    GeometryBinaryTreeReader(int columnId, Context context) throws IOException {
+      this(columnId, null, null, null, null, context);
+    }
+
+    protected GeometryBinaryTreeReader(int columnId, InStream present, InStream data, InStream length,
+        OrcProto.ColumnEncoding encoding, Context context) throws IOException {
+      super(columnId, present, context);
+      scratchlcv = new LongColumnVector();
+      this.stream = data;
+      if (length != null && encoding != null) {
+        checkEncoding(encoding);
+        this.lengths = createIntegerReader(encoding.getKind(), length, false, context);
+      }
+    }
+
+    @Override
+    void checkEncoding(OrcProto.ColumnEncoding encoding) throws IOException {
+      if ((encoding.getKind() != OrcProto.ColumnEncoding.Kind.DIRECT) &&
+          (encoding.getKind() != OrcProto.ColumnEncoding.Kind.DIRECT_V2)) {
+        throw new IOException("Unknown encoding " + encoding + " in column " +
+            columnId);
+      }
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+        OrcProto.StripeFooter stripeFooter
+    ) throws IOException {
+      super.startStripe(streams, stripeFooter);
+      StreamName name = new StreamName(columnId,
+          OrcProto.Stream.Kind.DATA);
+      stream = streams.get(name);
+      lengths = createIntegerReader(stripeFooter.getColumnsList().get(columnId).getKind(),
+          streams.get(new StreamName(columnId, OrcProto.Stream.Kind.LENGTH)), false, context);
+    }
+
+    @Override
+    public void seek(PositionProvider[] index) throws IOException {
+      seek(index[columnId]);
+    }
+
+    @Override
+    public void seek(PositionProvider index) throws IOException {
+      super.seek(index);
+      stream.seek(index);
+      lengths.seek(index);
+    }
+
+    @Override
+    public void nextVector(ColumnVector previousVector,
+                           boolean[] isNull,
+                           final int batchSize) throws IOException {
+      final BytesColumnVector result = (BytesColumnVector) previousVector;
+
+      // Read present/isNull stream
+      super.nextVector(result, isNull, batchSize);
+
+      scratchlcv.ensureSize(batchSize, false);
+      BytesColumnVectorUtil.readOrcByteArrays(stream, lengths, scratchlcv, result, batchSize);
+    }
+
+    @Override
+    void skipRows(long items) throws IOException {
+      items = countNonNulls(items);
+      long lengthToSkip = 0;
+      for (int i = 0; i < items; ++i) {
+        lengthToSkip += lengths.next();
+      }
+      while (lengthToSkip > 0) {
+        lengthToSkip -= stream.skip(lengthToSkip);
+      }
+    }
+  }
+
+  /**
+   * A tree reader that will read string columns. At the start of the
+   * stripe, it creates an internal reader based on whether a direct or
+   * dictionary encoding was used.
+   */
+  public static class GeometryTreeReader extends TreeReader {
+    protected TreeReader reader;
+    private GeometryValueEncodingKind spatialEncoding = GeometryValueEncodingKind.WKT;
+
+    GeometryTreeReader(int columnId, TypeDescription readerType, Context context) throws IOException {
+    	super(columnId, context);
+    	this.spatialEncoding = readerType.getGeomEncoding();
+    }
+
+    protected GeometryTreeReader(int columnId, InStream present, InStream data, InStream length,
+        InStream dictionary, OrcProto.ColumnEncoding encoding, Context context) throws IOException {
+      super(columnId, present, context);
+      if (this.spatialEncoding == GeometryValueEncodingKind.WKT) {
+	      if (encoding != null) {
+	        switch (encoding.getKind()) {
+	          case DIRECT:
+	          case DIRECT_V2:
+	            reader = new GeometryStringDirectTreeReader(columnId, present, data, length,
+	                encoding.getKind());
+	            break;
+	          case DICTIONARY:
+	          case DICTIONARY_V2:
+	            reader = new StringDictionaryTreeReader(columnId, present, data, length, dictionary,
+	                encoding, context);
+	            break;
+	          default:
+	            throw new IllegalArgumentException("Unsupported encoding " +
+	                encoding.getKind());
+	        }
+	      }
+      } else if (this.spatialEncoding == GeometryValueEncodingKind.Shape) {
+      	reader = new GeometryBinaryTreeReader(columnId, present, data, length, encoding, context);
+      }
+    }
+
+    @Override
+    void checkEncoding(OrcProto.ColumnEncoding encoding) throws IOException {
+      reader.checkEncoding(encoding);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+        OrcProto.StripeFooter stripeFooter
+    ) throws IOException {
+      // For each stripe, checks the encoding and initializes the appropriate
+      // reader
+      switch (stripeFooter.getColumnsList().get(columnId).getKind()) {
+        case DIRECT:
+        case DIRECT_V2:
+          reader = new StringDirectTreeReader(columnId);
+          break;
+        case DICTIONARY:
+        case DICTIONARY_V2:
+          reader = new StringDictionaryTreeReader(columnId, context);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported encoding " +
+              stripeFooter.getColumnsList().get(columnId).getKind());
+      }
+      reader.startStripe(streams, stripeFooter);
+    }
+
+    @Override
+    public void seek(PositionProvider[] index) throws IOException {
+      reader.seek(index);
+    }
+
+    @Override
+    public void seek(PositionProvider index) throws IOException {
+      reader.seek(index);
+    }
+
+    @Override
+    public void nextVector(ColumnVector previousVector,
+                           boolean[] isNull,
+                           final int batchSize) throws IOException {
+      reader.nextVector(previousVector, isNull, batchSize);
+    }
+
+    @Override
+    void skipRows(long items) throws IOException {
+      reader.skipRows(items);
+    }
+  }
+
   public static TreeReader createTreeReader(TypeDescription readerType,
                                             Context context
                                             ) throws IOException {
@@ -2192,6 +2457,10 @@ public class TreeReaderFactory {
         return new MapTreeReader(fileType.getId(), readerType, context);
       case UNION:
         return new UnionTreeReader(fileType.getId(), readerType, context);
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
+      	return new GeometryTreeReader(fileType.getId(), readerType, context);
       default:
         throw new IllegalArgumentException("Unsupported type " +
             readerTypeCategory);

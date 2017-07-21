@@ -15,33 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.orc;
+package org.apache.orc.impl;
 
-import org.apache.orc.ColumnStatistics;
+import org.apache.orc.impl.PositionRecorder;
+import org.apache.orc.impl.PositionedOutputStream;
 
-/**
- * Statistics for float and double columns.
- */
-public interface SpatialColumnStatistics extends ColumnStatistics {
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
-  /**
-   * Get the most minimum geometry in the column. Only defined if getNumberOfValues
-   * is non-zero.
-   * @return the minimum
-   */
-  long getMinimum();
+public class StringFieldWriter {
+//  private RunLengthByteWriter output;
+	private PositionedOutputStream output;
 
-  /**
-   * Get the most maximum geometry in the column. Only defined if getNumberOfValues
-   * is non-zero.
-   * @return the maximum
-   */
-  long getMaximum();
+  public StringFieldWriter(PositionedOutputStream output) throws IOException {
+    this.output = output;
+  }
 
-  /**
-   * Get the total length of all strings
-   * @return the sum (total length)
-   */
-  long getSum();
+  public void flush() throws IOException {
+    output.flush();
+  }
 
+  public void write(String value) throws IOException {
+      output.write(value.getBytes(StandardCharsets.UTF_8));
+  }
+  
+  public void getPosition(PositionRecorder recorder) throws IOException {
+    output.getPosition(recorder);
+  }
+
+  public long estimateMemory() {
+    return output.getBufferSize();
+  }
 }

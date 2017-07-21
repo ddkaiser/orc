@@ -17,6 +17,7 @@
  */
 package org.apache.orc;
 
+import org.apache.orc.OrcProto.GeometryValueEncodingKind;
 import org.apache.orc.impl.ReaderImpl;
 
 import java.util.ArrayList;
@@ -163,15 +164,15 @@ public class OrcUtils {
       break;
     case POINT:
         type.setKind(OrcProto.Type.Kind.POINT);
-        type.setCrs(typeDescr.getCrs());
+        type.setGeometryCrs(typeDescr.getGeomCRS());
         break;
     case POLYLINE:
         type.setKind(OrcProto.Type.Kind.POLYLINE);
-        type.setCrs(typeDescr.getCrs());
+        type.setGeometryCrs(typeDescr.getGeomCRS());
         break;
     case POLYGON:
         type.setKind(OrcProto.Type.Kind.POLYGON);
-        type.setCrs(typeDescr.getCrs());
+        type.setGeometryCrs(typeDescr.getGeomCRS());
         break;
     default:
       throw new IllegalArgumentException("Unknown category: " +
@@ -248,15 +249,15 @@ public class OrcUtils {
       break;
     case POINT:
       type.setKind(OrcProto.Type.Kind.POINT);
-      type.setCrs(typeDescr.getCrs());
+      type.setGeometryCrs(typeDescr.getGeomCRS());
       break;
     case POLYLINE:
       type.setKind(OrcProto.Type.Kind.POLYLINE);
-      type.setCrs(typeDescr.getCrs());
+      type.setGeometryCrs(typeDescr.getGeomCRS());
       break;
     case POLYGON:
       type.setKind(OrcProto.Type.Kind.POLYGON);
-      type.setCrs(typeDescr.getCrs());
+      type.setGeometryCrs(typeDescr.getGeomCRS());
       break;
     case LIST:
       type.setKind(OrcProto.Type.Kind.LIST);
@@ -387,15 +388,15 @@ public class OrcUtils {
       break;
     case POINT:
       builder.setKind(OrcProto.Type.Kind.POINT);
-      builder.setCrs(oldType.getCrs());
+      builder.setGeometryCrs(oldType.getGeometryCrs());
       break;
     case POLYLINE:
       builder.setKind(OrcProto.Type.Kind.POLYLINE);
-      builder.setCrs(oldType.getCrs());
+      builder.setGeometryCrs(oldType.getGeometryCrs());
       break;
     case POLYGON:
       builder.setKind(OrcProto.Type.Kind.POLYGON);
-      builder.setCrs(oldType.getCrs());
+      builder.setGeometryCrs(oldType.getGeometryCrs());
       break;
     case TIMESTAMP:
       builder.setKind(OrcProto.Type.Kind.TIMESTAMP);
@@ -526,22 +527,34 @@ public class OrcUtils {
         return TypeDescription.createBinary();
       case POINT: {
         TypeDescription result = TypeDescription.createPoint();
-        if (type.hasCrs()) {
-          result.withCRS(type.getCrs());
+        if (type.hasGeometryCrs()) {
+        	if (type.hasGeometryEncoding()) {
+        		result.withGeomSpec(type.getGeometryCrs(), type.getGeometryEncoding());
+        	}
+        } else {
+        	result.withGeomSpec(type.getGeometryCrs(), GeometryValueEncodingKind.WKT);
         }
         return result;
       }
       case POLYLINE: {
         TypeDescription result = TypeDescription.createPolyline();
-        if (type.hasCrs()) {
-          result.withCRS(type.getCrs());
+        if (type.hasGeometryCrs()) {
+        	if (type.hasGeometryEncoding()) {
+        		result.withGeomSpec(type.getGeometryCrs(), type.getGeometryEncoding());
+        	}
+        } else {
+        	result.withGeomSpec(type.getGeometryCrs(), GeometryValueEncodingKind.WKT);
         }
         return result;
       }
       case POLYGON: {
         TypeDescription result = TypeDescription.createPolygon();
-        if (type.hasCrs()) {
-          result.withCRS(type.getCrs());
+        if (type.hasGeometryCrs()) {
+        	if (type.hasGeometryEncoding()) {
+        		result.withGeomSpec(type.getGeometryCrs(), type.getGeometryEncoding());
+        	}
+        } else {
+        	result.withGeomSpec(type.getGeometryCrs(), GeometryValueEncodingKind.WKT);
         }
         return result;
       }
