@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.ql.exec.vector.StructColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.UnionColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.orc.OrcProto.GeometryValueEncodingKind;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -46,8 +47,27 @@ public class TypeDescription
   private static final int DEFAULT_PRECISION = 38;
   private static final int DEFAULT_SCALE = 10;
   private static final int DEFAULT_LENGTH = 256;
-  private static final String DEFAULT_CRS = "epsg:4326";
+  private static final String DEFAULT_GEOM_CRS = "epsg:4326";
+  private static final String DEFAULT_GEOM_ENCODING = "WKT";
   private static final Pattern UNQUOTED_NAMES = Pattern.compile("^\\w+$");
+
+  static class GeometryType {
+  	private final GeometryValueEncodingKind encoding;
+  	private final String crs;
+  
+	  GeometryType(GeometryValueEncodingKind encoding, String crs) {
+	  	this.encoding = encoding;
+	  	this.crs = crs;
+	  }
+
+		public GeometryValueEncodingKind getEncoding() {
+			return encoding;
+		}
+		
+		public String getCrs() {
+			return crs;
+		}
+  }
 
   @Override
   public int compareTo(TypeDescription other) {
@@ -115,9 +135,9 @@ public class TypeDescription
     MAP("map", false),
     STRUCT("struct", false),
     UNION("uniontype", false),
-    POINT("point", false),
-    POLYLINE("polyline", false),
-    POLYGON("polygon", false);
+    POINT("point", true),
+    POLYLINE("polyline", true),
+    POLYGON("polygon", true);
 
     Category(String name, boolean isPrimitive) {
       this.name = name;
@@ -195,7 +215,7 @@ public class TypeDescription
   public static TypeDescription createPolygon() {
     return new TypeDescription(Category.POLYGON);
   }
-
+  
   static class StringPosition {
     final String value;
     int position;
@@ -255,6 +275,62 @@ public class TypeDescription
     }
     return result;
   }
+  
+  static GeometryType parseGeomSpec(StringPosition source) {
+    if (source.position == source.length) {
+      throw new IllegalArgumentException("Missing CRS ID or spec at " + source);
+    }
+    //parse the geometry column encoding
+    int start = source.position;
+    while (source.position < source.length) {
+    	char ch = source.value.charAt(source.position);
+    	if (!Character.isLetterOrDigit(ch)) {
+    		break;
+    	}
+    	source.position += 1;
+    }
+    String encstr = source.value.substring(start, source.position).toLowerCase();
+    GeometryValueEncodingKind encoding = GeometryValueEncodingKind.WKT;
+    if (encstr.equals("wkt")) encoding = GeometryValueEncodingKind.WKT;
+    if (encstr.equals("gml")) encoding = GeometryValueEncodingKind.GML;
+    if (encstr.equals("kml")) encoding = GeometryValueEncodingKind.KML;
+    if (encstr.equals("geojson")) encoding = GeometryValueEncodingKind.GeoJson;
+    if (encstr.equals("wkb")) encoding = GeometryValueEncodingKind.WKB;
+    if (encstr.equals("shape")) encoding = GeometryValueEncodingKind.Shape;
+    if (encstr.equals("struct")) encoding = GeometryValueEncodingKind.GeometryStruct;
+
+    // parse out the separator
+    start = source.position;
+    while (source.position < source.length) {
+    	char ch = source.value.charAt(source.position);
+    	if ((ch == ' ') || (ch == ',')) {
+    		source.position +=1;
+    	}
+    	else {
+    		break;
+    	}
+    }
+    
+    // parse the CRS or SRID
+    start = source.position;
+    while (source.position < source.length) {
+      char ch = source.value.charAt(source.position);
+      if (!Character.isLetterOrDigit(ch) && ch != '.' && ch != '_' && ch != ':') {
+        break;
+      }
+      source.position += 1;
+    }
+    if (source.position == start) {
+      throw new IllegalArgumentException("Missing CRS ID or spec at " + source);
+    }
+    String crs = source.value.substring(start, source.position);
+    
+    if (source.position == start) {
+    	throw new IllegalArgumentException("Invalid Geometry Encoding Type at " + source);
+    }
+    
+    return (new GeometryType(encoding, crs));
+  }
 
   static String parseName(StringPosition source) {
     if (source.position == source.length) {
@@ -291,7 +367,7 @@ public class TypeDescription
     } else {
       while (source.position < source.length) {
         char ch = source.value.charAt(source.position);
-        if (!Character.isLetterOrDigit(ch) && ch != '.' && ch != '_' && ch != ':') {
+        if (!Character.isLetterOrDigit(ch) && ch != '.' && ch != '_') {
           break;
         }
         source.position += 1;
@@ -358,7 +434,8 @@ public class TypeDescription
       case POLYLINE:
       case POLYGON:
         requireChar(source, '(');
-        result.withCRS(parseName(source)); // using parseName to parse CRS actually
+        GeometryType type = parseGeomSpec(source);
+        result.withGeomSpec(type.getCrs(),type.getEncoding());
         requireChar(source, ')');
         break;
       case CHAR:
@@ -462,18 +539,31 @@ public class TypeDescription
   }
 
   /**
-   * For geometry types, set the CRS.
+   * For geometry types, set the CRS and Encoding.
    * @param crs the new CRS
+   * @param encoding the new storage encoding
    * @return this
    */
-  public TypeDescription withCRS(String crs) {
+  public TypeDescription withGeomSpec(String crs, GeometryValueEncodingKind encoding) {
     if ( (category != Category.POINT)
-      || (category != Category.POLYLINE)
-      || (category != Category.POLYGON) ) {
+      && (category != Category.POLYLINE)
+      && (category != Category.POLYGON) ) {
       throw new IllegalArgumentException("CRS is only allowed on geometry types"+
           " and not " + category.name);
     }
-    this.crs = crs;
+    if ( (encoding != GeometryValueEncodingKind.GeoJson)
+    		&& (encoding != GeometryValueEncodingKind.GeometryStruct)
+    		&& (encoding != GeometryValueEncodingKind.GML)
+    		&& (encoding != GeometryValueEncodingKind.KML)
+    		&& (encoding != GeometryValueEncodingKind.Shape)
+    		&& (encoding != GeometryValueEncodingKind.WKB)
+    		&& (encoding != GeometryValueEncodingKind.WKT)) {
+    	throw new IllegalArgumentException("Proper geometry encoding required"+
+    		" for column: " + this.fieldNames.get(0));
+    }
+    this.geomCRS = crs;
+    this.geomEncoding = encoding;
+    
     return this;
   }
 
@@ -763,10 +853,18 @@ public class TypeDescription
    * Get the CRS of the geometry type.
    * @return the CRS for geometry columns
    */
-  public String getCrs() {
-    return crs;
+  public String getGeomCRS() {
+    return geomCRS;
   }
 
+  /**
+   * Get the Encoding Type of the geometry.
+   * @return the Encoding.Kind for geometry columns
+   */
+  public GeometryValueEncodingKind getGeomEncoding() {
+  	return geomEncoding;
+  }
+  
   /**
    * For struct types, get the list of field names.
    * @return the list of field names.
@@ -822,7 +920,8 @@ public class TypeDescription
   private int maxLength = DEFAULT_LENGTH;
   private int precision = DEFAULT_PRECISION;
   private int scale = DEFAULT_SCALE;
-  private String crs = DEFAULT_CRS;
+  private String geomCRS = DEFAULT_GEOM_CRS;
+  private GeometryValueEncodingKind geomEncoding = GeometryValueEncodingKind.WKT;
 
   static void printFieldName(StringBuilder buffer, String name) {
     if (UNQUOTED_NAMES.matcher(name).matches()) {
@@ -878,7 +977,7 @@ public class TypeDescription
       case POLYLINE:
       case POLYGON:
         buffer.append('(');
-        buffer.append(crs);
+        buffer.append(geomCRS);
         buffer.append(')');
         break;
       default:
@@ -946,7 +1045,7 @@ public class TypeDescription
       case POLYGON:
         buffer.append(", \"CRS\": ");
         //TODO: store/retrieve CRS from column metadata (or table metadata of all columns)
-        buffer.append("\"" + crs + "\""); // stub/placeholder
+        buffer.append("\"" + geomCRS + "\""); // stub/placeholder
         break;
       default:
         break;

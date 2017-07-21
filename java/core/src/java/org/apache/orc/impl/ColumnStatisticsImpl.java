@@ -1259,8 +1259,9 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
   }
 
     protected static final class SpatialStatisticsImpl extends ColumnStatisticsImpl implements SpatialColumnStatistics {
-      private long minimum = Long.MAX_VALUE;
-      private long maximum = Long.MIN_VALUE;
+      private long minimum = Long.MAX_VALUE; //uninitialized state
+      private long maximum = Long.MIN_VALUE; //uninitialized state
+      private long sum = 0L;
       private boolean hasMinimum = false;
 
       SpatialStatisticsImpl() {
@@ -1276,7 +1277,36 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
       if (sstat.hasMaximum()) {
         maximum = sstat.getMaximum();
       }
+    	sum = sstat.getSum();
     }
+
+		@Override
+		public void updateSpatial1D(long floorValue, long ceilValue, long encodedLength) {
+			if (!hasMinimum) {
+				hasMinimum = true;
+				minimum = floorValue;
+				maximum = ceilValue;
+			} else if (floorValue < minimum) {
+				minimum = floorValue;
+			} else if (ceilValue > maximum) {
+				maximum = ceilValue;
+			}
+			sum += encodedLength;
+		}
+
+		@Override
+		public void updateSpatial2D(long minimumValue, long maximumValue, long encodedLength) {
+			if (!hasMinimum) {
+				hasMinimum = true;
+				minimum = minimumValue;
+				maximum = maximumValue;
+			} else if (minimumValue < minimum) {
+				minimum = minimumValue;
+			} else if (maximumValue > maximum) {
+				maximum = maximumValue;
+			}
+			sum += encodedLength;
+		}
 
     @Override
     public void merge(ColumnStatisticsImpl other) {
@@ -1294,6 +1324,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
             maximum = sstat.maximum;
           }
         }
+        sum += sstat.sum;
       } else {
         if (isStatsExists() && hasMinimum) {
           throw new IllegalArgumentException("Incompatible merging of spatial column statistics");
@@ -1310,6 +1341,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
       if (hasMinimum) {
         ints.setMinimum(minimum);
         ints.setMaximum(maximum);
+        ints.setSum(sum);
       }
       builder.setSpatialStatistics(ints);
       return builder;
@@ -1324,6 +1356,11 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     public long getMaximum() {
       return maximum;
     }
+    
+		@Override
+		public long getSum() {
+			return sum;
+		}
 
     @Override
     public String toString() {
@@ -1333,6 +1370,8 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
         buf.append(getMinimum());
         buf.append(" max: ");
         buf.append(getMaximum());
+        buf.append(" sum: ");
+        buf.append(getSum());
 
 //	buf.append(" minX: ");
 //	buf.append(getMinimum().getX());
@@ -1342,6 +1381,8 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
 //	buf.append(getMaximum().getX());
 //	buf.append(" maxY: ");
 //	buf.append(getMaximum().getY());
+//  buf.append(" sum: ");
+//  buf.append(getSum());
       }
       return buf.toString();
     }
@@ -1368,6 +1409,10 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
       }
       if (hasMinimum != that.hasMinimum) {
         return false;
+      }
+      
+      if (sum != that.sum) {
+      	return false;
       }
 
       return true;
@@ -1447,11 +1492,11 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     throw new UnsupportedOperationException("Can't update decimal");
   }
 
-  public void updateSpatial1D(long value) {
+  public void updateSpatial1D(long floorValue, long ceilValue, long encodedLength) {
     throw new UnsupportedOperationException("Can't update spatial");
   }
 
-  public void updateSpatial2D(long minValue, long maxValue) {
+  public void updateSpatial2D(long minValue, long maxValue, long encodedLength) {
     throw new UnsupportedOperationException("Can't update spatial");
   }
 
@@ -1532,6 +1577,10 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
         return new TimestampStatisticsImpl();
       case BINARY:
         return new BinaryStatisticsImpl();
+      case POINT:
+      case POLYLINE:
+      case POLYGON:
+      	return new SpatialStatisticsImpl();
       default:
         return new ColumnStatisticsImpl();
     }
@@ -1554,6 +1603,8 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
       return new TimestampStatisticsImpl(stats);
     } else if(stats.hasBinaryStatistics()) {
       return new BinaryStatisticsImpl(stats);
+    } else if (stats.hasSpatialStatistics()) {
+    	return new SpatialStatisticsImpl(stats);
     } else {
       return new ColumnStatisticsImpl(stats);
     }

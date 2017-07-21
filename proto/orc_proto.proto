@@ -91,15 +91,17 @@ message SpatialPoint {
 
 message SpatialMBR {
   // for signed coordinates: 0,0 is center of both axes ('*' in diagram)
-  // for unsigned coordinates: 0,0 is absolute lower left ('0' in diagram)
+  // for unsigned coordinates:
+  //   0,0 is absolute lower left ('N' in diagram)
+  //   N is MiN, X is MaX
   // assumption is line connecting minimum/maximum creates 90 degree joint
   // and that lines are horizontal/vertical to coordinate system
   //
-  // |-----------------------|-----------------------|
+  // |-----------------------|-----------------------X
   // |                       |                       |
   // |-----------------------*-----------------------|
   // |                       |                       |
-  // 0-----------------------|-----------------------|
+  // N-----------------------|-----------------------|
   //
   // in both cases:
   // minimum = LowerLeft (LL): least longitude (left-most X) and least latitude (lowest Y)
@@ -112,6 +114,8 @@ message SpatialStatistics {
 //  optional SpatialMBR mbr = 1;
   optional uint64 minimum = 1;
   optional uint64 maximum = 2;
+  // sum doesn't make sense for SpatialStats, but is useful for the encoded value lengths/averages
+  optional uint64 sum = 3;
 }
 
 message ColumnStatistics {
@@ -160,16 +164,26 @@ message SpatialIndex {
   optional SpatialGeohash geohash = 2;
 }
 
-message SpatialColumnEncoding {
-  enum Kind {
-    WKT = 0;
-    WKB = 1;
-    GeoJson = 2;
-    GML = 3;
-    KML = 4;
-    Shape = 5;
-    GeometryStruct = 6;
-  }
+//message SpatialValueEncoding {
+//  enum Kind {
+//    WKT = 0;
+//    WKB = 1;
+//    GeoJson = 2;
+//    GML = 3;
+//    KML = 4;
+//    Shape = 5;
+//    GeometryStruct = 6;
+//  }
+//}
+
+enum GeometryValueEncodingKind {
+  WKT = 0;
+  WKB = 1;
+  GeoJson = 2;
+  GML = 3;
+  KML = 4;
+  Shape = 5;
+  GeometryStruct = 6;
 }
 
 message Stream {
@@ -245,8 +259,10 @@ message Type {
   optional uint32 maximumLength = 4;
   optional uint32 precision = 5;
   optional uint32 scale = 6;
-  optional string crs = 7;
+  optional string geometryCrs = 7;
   // Coordinate Reference System - only valid for Point, Polyline & Polygon
+  optional GeometryValueEncodingKind geometryEncoding = 8;
+  // GeometryValueEncoding - only valid for Point, Polyline & Polygon
 }
 
 message StripeInformation {

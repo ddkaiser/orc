@@ -89,7 +89,7 @@ public abstract class TreeWriterBase implements TreeWriter {
     }
     this.foundNulls = false;
     createBloomFilter = streamFactory.getBloomFilterColumns()[columnId];
-    createSpatialIndex = true;
+    createSpatialIndex = streamFactory.getSpatialFilterColumns()[columnId];
     indexStatistics = ColumnStatisticsImpl.create(schema);
     stripeColStatistics = ColumnStatisticsImpl.create(schema);
     fileStatistics = ColumnStatisticsImpl.create(schema);

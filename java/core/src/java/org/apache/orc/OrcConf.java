@@ -115,6 +115,8 @@ public enum OrcConf {
   IGNORE_NON_UTF8_BLOOM_FILTERS("orc.bloom.filter.ignore.non-utf8",
       "orc.bloom.filter.ignore.non-utf8", false,
       "Should the reader ignore the obsolete non-UTF8 bloom filters."),
+  SPATIAL_FILTER_COLUMNS("orc.spatial.filter.columns", "orc.spatial.filter.columns",
+  		"", "List of columns to create spatial indexes for when writing."),
   MAX_FILE_LENGTH("orc.max.file.length", "orc.max.file.length", Long.MAX_VALUE,
       "The maximum size of the file to read for finding the file tail. This\n" +
           "is primarily used for streaming ingest to read intermediate\n" +

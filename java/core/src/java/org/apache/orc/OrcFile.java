@@ -368,6 +368,7 @@ public class OrcFile {
     private String bloomFilterColumns;
     private double bloomFilterFpp;
     private BloomFilterVersion bloomFilterVersion;
+    private String spatialFilterColumns;
     private PhysicalWriter physicalWriter;
     private WriterVersion writerVersion = CURRENT_WRITER;
 
@@ -407,6 +408,8 @@ public class OrcFile {
           BloomFilterVersion.fromString(
               OrcConf.BLOOM_FILTER_WRITE_VERSION.getString(tableProperties,
                   conf));
+      spatialFilterColumns = OrcConf.SPATIAL_FILTER_COLUMNS.getString(tableProperties,
+      		conf);
     }
 
     /**
@@ -527,6 +530,14 @@ public class OrcFile {
     }
 
     /**
+     * Comma separated values of column names for which spatial index is to be created.
+     */
+    public WriterOptions spatialFilterColumns(String columns) {
+    	spatialFilterColumns = columns;
+    	return this;
+    }
+    
+    /**
      * Sets the generic compression that is used to compress the data.
      */
     public WriterOptions compress(CompressionKind value) {
@@ -617,6 +628,10 @@ public class OrcFile {
       return bloomFilterColumns;
     }
 
+    public String getSpatialFilterColumns() {
+    	return spatialFilterColumns;
+    }
+    
     public FileSystem getFileSystem() {
       return fileSystemValue;
     }

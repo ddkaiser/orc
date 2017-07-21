@@ -74,6 +74,12 @@ public interface WriterContext {
     double getBloomFilterFPP();
 
     /**
+     * Get the spatial filter columns
+     * @return spatial filter columns
+     */
+    boolean[] getSpatialFilterColumns();
+    
+    /**
      * Get the writer's configuration.
      * @return configuration
      */

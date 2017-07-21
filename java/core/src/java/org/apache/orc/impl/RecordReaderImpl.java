@@ -45,6 +45,7 @@ import org.apache.orc.OrcConf;
 import org.apache.orc.OrcProto;
 import org.apache.orc.Reader;
 import org.apache.orc.RecordReader;
+import org.apache.orc.SpatialColumnStatistics;
 import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.TimestampColumnStatistics;
@@ -349,6 +350,8 @@ public class RecordReaderImpl implements RecordReader {
       } else {
         return Boolean.FALSE;
       }
+    } else if (index instanceof SpatialColumnStatistics) {
+    	return ((SpatialColumnStatistics) index).getMaximum();
     } else {
       return null;
     }
@@ -379,6 +382,8 @@ public class RecordReaderImpl implements RecordReader {
       } else {
         return Boolean.TRUE;
       }
+    } else if (index instanceof SpatialColumnStatistics) {
+    	return ((SpatialColumnStatistics) index).getMinimum();
     } else {
       return UNKNOWN_VALUE; // null is not safe here
     }

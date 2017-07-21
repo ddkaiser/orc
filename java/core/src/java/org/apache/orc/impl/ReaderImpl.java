@@ -643,7 +643,8 @@ public class ReaderImpl implements Reader {
     OrcProto.ColumnStatistics colStat = stats.get(colIdx);
     long numVals = colStat.getNumberOfValues();
     OrcProto.Type type = types.get(colIdx);
-
+    int avgStrLen = 0;
+    
     switch (type.getKind()) {
     case BINARY:
       // old orc format doesn't support binary statistics. checking for binary
@@ -658,7 +659,7 @@ public class ReaderImpl implements Reader {
       // ORC strings are deserialized to java strings. so use java data model's
       // string size
       numVals = numVals == 0 ? 1 : numVals;
-      int avgStrLen = (int) (colStat.getStringStatistics().getSum() / numVals);
+      avgStrLen = (int) (colStat.getStringStatistics().getSum() / numVals);
       return numVals * JavaDataModel.get().lengthForStringOfLength(avgStrLen);
     case TIMESTAMP:
       return numVals * JavaDataModel.get().lengthOfTimestamp();
@@ -675,6 +676,29 @@ public class ReaderImpl implements Reader {
     case BOOLEAN:
     case BYTE:
       return numVals * JavaDataModel.get().primitive1();
+    case POINT:
+    case POLYLINE:
+    case POLYGON:
+    	switch (type.getGeometryEncoding()) {
+    		case WKT:
+    		case GeoJson:
+    		case GML:
+    		case KML:
+        	//for string-based spatial encoding
+          numVals = numVals == 0 ? 1 : numVals;
+          avgStrLen = (int) (colStat.getSpatialStatistics().getSum() / numVals);
+          return numVals * JavaDataModel.get().lengthForStringOfLength(avgStrLen);
+    		case WKB:
+    		case Shape:
+        	//for binary-based spatial encoding
+          numVals = numVals == 0 ? 1 : numVals;
+          avgStrLen = (int) (colStat.getSpatialStatistics().getSum() / numVals);
+          return numVals * JavaDataModel.get().lengthForByteArrayOfSize(avgStrLen);
+			default:
+	      LOG.debug("Unknown geometry encoding: " + type.getGeometryEncoding());
+				break;
+    	}
+
     default:
       LOG.debug("Unknown primitive category: " + type.getKind());
       break;

@@ -36,6 +36,8 @@ import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.StructColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.orc.OrcProto.GeometryValueEncodingKind;
+import org.apache.orc.OrcProto.Type.Kind;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.threeten.bp.LocalDateTime;
@@ -221,6 +223,40 @@ public class JsonReader implements RecordReader {
     }
   }
 
+  static class GeometryColumnConverter implements JsonConverter {
+
+  	private JsonConverter converter;
+  	
+  	public GeometryColumnConverter(TypeDescription schema) {
+
+  		// support only WKT for now
+  		GeometryValueEncodingKind spatialEncoding = GeometryValueEncodingKind.WKT;
+  		
+  		switch (spatialEncoding) {
+	  		case WKB:
+	  		case Shape:
+	  			converter = createConverter(TypeDescription.createBinary());
+	  			break;
+	  			
+	  		case WKT:
+	  		case GeoJson:
+	  		case GML:
+	  		case KML:
+	  		  converter = createConverter(TypeDescription.createString());
+	  		  break;
+	  		  
+	  		default:
+	  			converter = null;
+	  			//TODO: exception
+	  			break;
+  		}
+  	}
+
+  	public void convert(JsonElement value, ColumnVector vect, int row) {
+  		converter.convert(value, vect, row);
+  	}
+  }
+
   static JsonConverter createConverter(TypeDescription schema) {
     switch (schema.getCategory()) {
       case BYTE:
@@ -247,6 +283,12 @@ public class JsonReader implements RecordReader {
         return new StructColumnConverter(schema);
       case LIST:
         return new ListColumnConverter(schema);
+      case POINT:
+      	return new GeometryColumnConverter(schema);
+      case POLYLINE:
+      	return new GeometryColumnConverter(schema);
+      case POLYGON:
+      	return new GeometryColumnConverter(schema);
       default:
         throw new IllegalArgumentException("Unhandled type " + schema);
     }
