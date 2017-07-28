@@ -631,8 +631,8 @@
         <version>1.7.5</version>
       </dependency>
       <dependency>
-      	<groupId>com.esri.geometry</groupId>
-      	<artifactId>esri-geometry-api</artifactId>
+        <groupId>com.esri.geometry</groupId>
+        <artifactId>esri-geometry-api</artifactId>
         <version>2.0.0</version>
       </dependency>
       <dependency>
